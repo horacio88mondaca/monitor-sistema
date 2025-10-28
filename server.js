@@ -21,12 +21,14 @@ function bytesToGB(bytes) {
 
 async function obtenerDatosSistema() {
     try {
-        const [memoria, cpu, cpuTemp, discos, interfaces] = await Promise.all([
+        const [memoria, cpu, cpuTemp, discos, interfaces, sistema, procesos] = await Promise.all([
             si.mem(),
             si.cpu(),
             si.cpuTemperature(),
             si.fsSize(),
-            si.networkInterfaces()
+            si.networkInterfaces(),
+            si.osInfo(),
+            si.processes()
         ]);
 
         const sda1 = discos.find(d => d.mount === '/') || null;
@@ -56,6 +58,13 @@ async function obtenerDatosSistema() {
 
         return {
             timestamp: new Date().toISOString(),
+            sistema: {
+                plataforma: sistema.platform,
+                distro: sistema.distro,
+                version: sistema.release,
+                arquitectura: sistema.arch,
+                hostname: sistema.hostname
+            },
             cpu: {
                 fabricante: cpu.manufacturer || 'Desconocido',
                 modelo: cpu.brand || 'Desconocido',
@@ -86,7 +95,16 @@ async function obtenerDatosSistema() {
                     esSwap: true
                 }
             },
-            red
+            red,
+            procesos: procesos.list
+              .sort((a, b) => b.cpu - a.cpu) // ordenados por uso de CPU descendente
+              .slice(0, 5) // solo los 5 más activos
+              .map(p => ({
+                  nombre: p.name,
+                  pid: p.pid,
+                  cpu: p.cpu.toFixed(1) + '%',
+                  memoria: p.mem.toFixed(1) + '%'
+                })),
         };
     } catch (error) {
         console.error('Error al obtener datos del sistema:', error);
